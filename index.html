@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Cabine de Fotos</title>
+<style>
+  :root{
+    --curtain-deep: #2a0e14;
+    --curtain-mid: #4a1620;
+    --curtain-line: #6b1f2b;
+    --bulb-gold: #e8b84b;
+    --bulb-warm: #f2cd6e;
+    --paper: #faf6ef;
+    --ink: #221012;
+    --ok-green: #4a7c59;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{
+    height:100%; width:100%; overflow:hidden;
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--curtain-deep);
+    color: var(--paper);
+    -webkit-user-select:none; user-select:none;
+  }
+  #app{ position:relative; height:100vh; height:100dvh; width:100vw; }
+
+  /* fundo tipo cortina de veludo com luzes de marquise */
+  .curtain-bg{
+    position:absolute; inset:0;
+    background:
+      radial-gradient(circle at 8% 6%, rgba(232,184,75,0.35), transparent 3%),
+      radial-gradient(circle at 22% 4%, rgba(232,184,75,0.35), transparent 3%),
+      radial-gradient(circle at 36% 6%, rgba(232,184,75,0.35), transparent 3%),
+      radial-gradient(circle at 50% 4%, rgba(232,184,75,0.35), transparent 3%),
+      radial-gradient(circle at 64% 6%, rgba(232,184,75,0.35), transparent 3%),
+      radial-gradient(circle at 78% 4%, rgba(232,184,75,0.35), transparent 3%),
+      radial-gradient(circle at 92% 6%, rgba(232,184,75,0.35), transparent 3%),
+      repeating-linear-gradient(90deg, var(--curtain-mid) 0px, var(--curtain-mid) 38px, var(--curtain-line) 38px, var(--curtain-line) 46px),
+      linear-gradient(180deg, var(--curtain-deep), #1a080c);
+    z-index:0;
+  }
+
+  .screen{
+    position:absolute; inset:0; z-index:1;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    padding: 4vh 4vw;
+    text-align:center;
+  }
+  .screen.active{ display:flex; }
+
+  /* ---------- TELA INICIAL ---------- */
+  .brand-eyebrow{
+    letter-spacing:0.35em; text-transform:uppercase; font-size:1.1rem;
+    color: var(--bulb-gold); font-weight:600; margin-bottom:1.2rem;
+  }
+  .brand-title{
+    font-size:6vw; font-weight:800; line-height:1.02; letter-spacing:-0.01em;
+    text-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  .brand-sub{
+    margin-top:1.4rem; font-size:1.6rem; color:#e9d9cf; opacity:0.85; max-width:60vw;
+  }
+  .start-btn{
+    margin-top:4rem; padding:1.6rem 5rem; font-size:2rem; font-weight:700;
+    background: var(--bulb-gold); color:#2a1400; border:none; border-radius:100px;
+    box-shadow: 0 10px 0 #a97c1f, 0 14px 30px rgba(0,0,0,0.45);
+    cursor:pointer; transition: transform .08s ease;
+  }
+  .start-btn:active{ transform: translateY(8px); box-shadow: 0 2px 0 #a97c1f, 0 6px 16px rgba(0,0,0,0.4); }
+
+  .gear{
+    position:absolute; bottom:1.4rem; right:1.6rem; width:3rem; height:3rem;
+    border-radius:50%; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18);
+    color:#e9d9cf; font-size:1.3rem; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; z-index:5;
+  }
+
+  /* ---------- TELA DE EXPLICACAO ---------- */
+  .explain-title{ font-size:3.2rem; font-weight:800; margin-bottom:2rem; }
+  .explain-steps{
+    display:flex; gap:2.4rem; margin-bottom:3rem; flex-wrap:wrap; justify-content:center; max-width:70vw;
+  }
+  .explain-step{
+    display:flex; flex-direction:column; align-items:center; gap:0.6rem; width:11rem;
+  }
+  .explain-step .num{
+    width:3.2rem; height:3.2rem; border-radius:50%; background:var(--bulb-gold); color:#2a1400;
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.3rem;
+  }
+  .explain-step .txt{ font-size:1.05rem; color:#e9d9cf; opacity:0.9; }
+
+  /* ---------- CAPTURA ---------- */
+  #captureScreen{ padding:0; }
+  .cam-wrap{
+    position:relative; width:100%; height:100%; overflow:hidden; background:#000;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  /* moldura quadrada, na mesma proporcao 78x75mm da polaroid final */
+  .cam-frame{
+    position:relative; overflow:hidden; background:#000;
+    width: min(78vw, calc(84vh * (78/75)));
+    aspect-ratio: 78 / 75;
+    border-radius:16px;
+    border:4px solid rgba(232,184,75,0.55);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  #camVideo{
+    position:absolute; top:50%; left:50%; transform: translate(-50%,-50%) scaleX(-1);
+    height:100%; width:auto; min-width:100%; object-fit:cover;
+  }
+  .shot-counter{
+    margin-top:1.6rem;
+    background:rgba(0,0,0,0.5); padding:0.7rem 1.6rem; border-radius:100px;
+    font-size:1.4rem; font-weight:700; letter-spacing:0.05em; z-index:3;
+  }
+  .thumbs{
+    margin-top:1.6rem;
+    display:flex; gap:0.6rem; z-index:3;
+  }
+  .thumb-slot{
+    width:4.2rem; height:4rem; border-radius:8px; border:2px solid rgba(255,255,255,0.35);
+    background:rgba(255,255,255,0.08); overflow:hidden;
+  }
+  .thumb-slot img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .countdown-num{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:9rem; font-weight:800; color:white; text-shadow:0 8px 40px rgba(0,0,0,0.6);
+    z-index:4; animation: pop .5s ease; background:rgba(0,0,0,0.25);
+  }
+  @keyframes pop{ 0%{ transform:scale(0.4); opacity:0;} 60%{ transform:scale(1.15); opacity:1;} 100%{ transform:scale(1);} }
+  .flash{
+    position:absolute; inset:0; background:white; z-index:6; opacity:0; pointer-events:none;
+  }
+  .flash.go{ animation: flashfx .35s ease; }
+  @keyframes flashfx{ 0%{opacity:0.9;} 100%{opacity:0;} }
+
+  /* ---------- REVISAO ---------- */
+  #reviewScreen{ justify-content:flex-start; padding-top:3vh; }
+  .review-title{ font-size:2.4rem; font-weight:800; margin-bottom:0.4rem; }
+  .review-sub{ font-size:1.2rem; color:#e9d9cf; opacity:0.8; margin-bottom:1.6rem; }
+  .sheet-scale-wrap{ position:relative; }
+  #sheet{
+    width:210mm; height:297mm; background:var(--paper);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    position:relative;
+  }
+  .card{
+    position:absolute; width:78mm; height:75mm;
+    background:#111; overflow:hidden; border-radius:2px;
+  }
+  .card img.shot{ width:100%; height:100%; object-fit:cover; display:block; }
+  .wm{ position:absolute; pointer-events:none; }
+  .review-actions{
+    margin-top:2rem; display:flex; gap:1.6rem;
+  }
+  .btn{
+    padding:1.2rem 3rem; font-size:1.4rem; font-weight:700; border:none; border-radius:100px;
+    cursor:pointer;
+  }
+  .btn-secondary{
+    background:transparent; color:var(--paper); border:2px solid rgba(255,255,255,0.4);
+  }
+  .btn-primary{
+    background: var(--ok-green); color:white;
+    box-shadow: 0 8px 0 #33573f;
+  }
+  .btn-primary:active{ transform:translateY(6px); box-shadow:0 2px 0 #33573f; }
+
+  /* ---------- IMPRIMINDO / OBRIGADO ---------- */
+  #printingScreen.overlay-visible{
+    display:flex; position:fixed; inset:0; z-index:20;
+    background: var(--curtain-deep);
+  }
+  .print-icon{ font-size:5rem; margin-bottom:1.4rem; }
+  .thanks-title{ font-size:3.4rem; font-weight:800; }
+  .thanks-sub{ font-size:1.3rem; color:#e9d9cf; opacity:0.85; margin-top:0.8rem; }
+
+  /* ---------- ADMIN ---------- */
+  #adminScreen{
+    align-items:stretch; justify-content:flex-start; text-align:left;
+    background: rgba(15,6,9,0.97); padding: 3vh 6vw; overflow-y:auto;
+  }
+  .admin-title{ font-size:2rem; font-weight:800; margin-bottom:1.6rem; }
+  .admin-row{
+    display:flex; align-items:center; justify-content:space-between; gap:2rem;
+    padding:1.2rem 0; border-bottom:1px solid rgba(255,255,255,0.1);
+  }
+  .admin-label{ font-size:1.1rem; font-weight:600; }
+  .admin-hint{ font-size:0.9rem; opacity:0.6; font-weight:400; margin-top:0.2rem; }
+  select, input[type=range]{ font-size:1rem; }
+  .file-btn{
+    padding:0.7rem 1.4rem; border-radius:8px; border:1px solid rgba(255,255,255,0.3);
+    background:rgba(255,255,255,0.08); color:var(--paper); cursor:pointer; font-size:1rem;
+  }
+  .wm-preview{ width:60px; height:60px; border-radius:8px; background:repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50%/16px 16px; overflow:hidden; display:flex;align-items:center;justify-content:center; }
+  .wm-preview img{ max-width:100%; max-height:100%; }
+  .admin-close{
+    margin-top:2rem; align-self:flex-start;
+    padding:0.9rem 2.2rem; border-radius:100px; border:none; background:var(--bulb-gold); color:#2a1400; font-weight:700; font-size:1.1rem; cursor:pointer;
+  }
+
+  @media print{
+    body *{ visibility:hidden; }
+    #sheet, #sheet *{ visibility:visible; }
+    #sheet{
+      position:fixed; top:0; left:0; transform:none !important; box-shadow:none;
+      margin:0;
+    }
+    @page{ size:A4; margin:0; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="curtain-bg"></div>
+
+  <!-- TELA INICIAL -->
+  <div class="screen active" id="startScreen">
+    <div class="brand-eyebrow">Cabine de Fotos</div>
+    <div class="brand-title">Toque para<br>começar</div>
+    <div class="brand-sub">Vamos tirar 6 fotos suas. Sorria!</div>
+    <button class="start-btn" id="btnStart">Começar ✦</button>
+    <div class="gear" id="btnAdmin" title="Configurações">⚙</div>
+  </div>
+
+  <!-- EXPLICACAO -->
+  <div class="screen" id="explainScreen">
+    <div class="explain-title">Como funciona</div>
+    <div class="explain-steps">
+      <div class="explain-step"><div class="num">1</div><div class="txt">Vamos tirar 6 fotos suas, uma de cada vez</div></div>
+      <div class="explain-step"><div class="num">2</div><div class="txt">Prepare a pose quando aparecer a contagem 3, 2, 1</div></div>
+      <div class="explain-step"><div class="num">3</div><div class="txt">No final, você confere e confirma a impressão</div></div>
+    </div>
+    <button class="start-btn" id="btnExplainStart">Iniciar ✦</button>
+  </div>
+
+  <!-- CAPTURA -->
+  <div class="screen" id="captureScreen">
+    <div class="cam-wrap">
+      <div class="cam-frame" id="camFrame">
+        <video id="camVideo" autoplay playsinline muted></video>
+        <div class="flash" id="flashFx"></div>
+        <div class="countdown-num" id="countdownNum" style="display:none;"></div>
+      </div>
+      <div class="shot-counter" id="shotCounter">Foto 1 de 6</div>
+      <div class="thumbs" id="thumbsRow"></div>
+    </div>
+  </div>
+
+  <!-- REVISAO -->
+  <div class="screen" id="reviewScreen">
+    <div class="review-title">Ficou assim!</div>
+    <div class="review-sub">Confira suas fotos antes de imprimir</div>
+    <div class="sheet-scale-wrap" id="sheetScaleWrap">
+      <div id="sheet"></div>
+    </div>
+    <div class="review-actions">
+      <button class="btn btn-secondary" id="btnRetake">↺ Tirar de novo</button>
+      <button class="btn btn-primary" id="btnConfirm">Confirmar e Imprimir 🖨</button>
+    </div>
+  </div>
+
+  <!-- IMPRIMINDO / OBRIGADO -->
+  <div class="screen" id="printingScreen">
+    <div class="print-icon">🖨️</div>
+    <div class="thanks-title">Imprimindo...</div>
+    <div class="thanks-sub">Obrigado por participar! Destaque sua foto quando sair. ✂️</div>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="screen" id="adminScreen">
+    <div class="admin-title">Configurações</div>
+
+    <div class="admin-row">
+      <div>
+        <div class="admin-label">Marca d'água (PNG)</div>
+        <div class="admin-hint">Aparece em cada foto impressa</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:1rem;">
+        <div class="wm-preview" id="wmPreview"></div>
+        <label class="file-btn">Escolher arquivo<input type="file" id="wmInput" accept="image/png" style="display:none;"></label>
+      </div>
+    </div>
+
+    <div class="admin-row">
+      <div>
+        <div class="admin-label">Opacidade da marca d'água</div>
+      </div>
+      <input type="range" id="wmOpacity" min="10" max="100" value="70">
+    </div>
+
+    <div class="admin-row">
+      <div>
+        <div class="admin-label">Posição da marca d'água</div>
+      </div>
+      <select id="wmPosition">
+        <option value="br">Canto inferior direito</option>
+        <option value="bl">Canto inferior esquerdo</option>
+        <option value="center">Centralizada</option>
+        <option value="tr">Canto superior direito</option>
+      </select>
+    </div>
+
+    <div class="admin-row">
+      <div>
+        <div class="admin-label">Tamanho da marca d'água</div>
+      </div>
+      <input type="range" id="wmSize" min="10" max="45" value="22">
+    </div>
+
+    <div class="admin-row">
+      <div>
+        <div class="admin-label">Câmera</div>
+        <div class="admin-hint">Frontal (voltada pro convidado) ou traseira</div>
+      </div>
+      <select id="camFacing">
+        <option value="user">Frontal</option>
+        <option value="environment">Traseira</option>
+      </select>
+    </div>
+
+    <button class="admin-close" id="btnAdminClose">Salvar e fechar</button>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const screens = ['startScreen','explainScreen','captureScreen','reviewScreen','printingScreen','adminScreen'];
+  function showScreen(id){
+    screens.forEach(s => $(s).classList.toggle('active', s===id));
+  }
+
+  // ---------- posições fixas do gabarito A4 (mm) ----------
+  const CARD_W = 78, CARD_H = 75;
+  const POSITIONS = [
+    {x:21, y:12},  {x:111, y:12},
+    {x:21, y:107}, {x:111, y:107},
+    {x:21, y:202}, {x:111, y:202},
+  ];
+
+  // ---------- config / admin ----------
+  const cfg = {
+    wmDataUrl: localStorage.getItem('cf_wm') || null,
+    wmOpacity: parseInt(localStorage.getItem('cf_wm_opacity') || '70'),
+    wmPosition: localStorage.getItem('cf_wm_position') || 'br',
+    wmSize: parseInt(localStorage.getItem('cf_wm_size') || '22'),
+    camFacing: localStorage.getItem('cf_cam_facing') || 'user',
+  };
+
+  function loadAdminUI(){
+    $('wmOpacity').value = cfg.wmOpacity;
+    $('wmPosition').value = cfg.wmPosition;
+    $('wmSize').value = cfg.wmSize;
+    $('camFacing').value = cfg.camFacing;
+    renderWmPreview();
+  }
+  function renderWmPreview(){
+    $('wmPreview').innerHTML = cfg.wmDataUrl ? `<img src="${cfg.wmDataUrl}">` : '';
+  }
+  $('wmInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      cfg.wmDataUrl = reader.result;
+      localStorage.setItem('cf_wm', cfg.wmDataUrl);
+      renderWmPreview();
+    };
+    reader.readAsDataURL(file);
+  });
+  $('wmOpacity').addEventListener('input', e => { cfg.wmOpacity = parseInt(e.target.value); localStorage.setItem('cf_wm_opacity', cfg.wmOpacity); });
+  $('wmPosition').addEventListener('change', e => { cfg.wmPosition = e.target.value; localStorage.setItem('cf_wm_position', cfg.wmPosition); });
+  $('wmSize').addEventListener('input', e => { cfg.wmSize = parseInt(e.target.value); localStorage.setItem('cf_wm_size', cfg.wmSize); });
+  $('camFacing').addEventListener('change', e => { cfg.camFacing = e.target.value; localStorage.setItem('cf_cam_facing', cfg.camFacing); });
+
+  $('btnAdmin').addEventListener('click', ()=>{ loadAdminUI(); showScreen('adminScreen'); });
+  $('btnAdminClose').addEventListener('click', ()=>{ showScreen('startScreen'); });
+
+  // ---------- captura ----------
+  let stream = null;
+  let shots = []; // dataURLs já recortados
+
+  async function startCamera(){
+    if(stream){ stream.getTracks().forEach(t=>t.stop()); }
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode: cfg.camFacing, width:{ideal:1920}, height:{ideal:1080} },
+      audio:false
+    });
+    $('camVideo').srcObject = stream;
+  }
+
+  function cropToRatio(video, targetRatio){
+    // targetRatio = width/height desejado (CARD_W/CARD_H)
+    const vw = video.videoWidth, vh = video.videoHeight;
+    let sx, sy, sw, sh;
+    const currentRatio = vw / vh;
+    if(currentRatio > targetRatio){
+      sh = vh; sw = vh * targetRatio; sx = (vw - sw)/2; sy = 0;
+    } else {
+      sw = vw; sh = vw / targetRatio; sx = 0; sy = (vh - sh)/2;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = 900; canvas.height = 900 / targetRatio;
+    const ctx = canvas.getContext('2d');
+    // espelha horizontalmente pra bater com o preview (selfie)
+    ctx.translate(canvas.width,0); ctx.scale(-1,1);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }
+
+  function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+  async function runCountdown(seconds){
+    const el = $('countdownNum');
+    el.style.display = 'flex';
+    for(let i=seconds;i>0;i--){
+      el.textContent = i;
+      el.style.animation = 'none'; void el.offsetWidth; el.style.animation = 'pop .5s ease';
+      await sleep(700);
+    }
+    el.style.display = 'none';
+  }
+
+  function renderThumbs(){
+    $('thumbsRow').innerHTML = shots.map(s => `<div class="thumb-slot"><img src="${s}"></div>`).join('')
+      + Array.from({length: 6-shots.length}).map(()=>'<div class="thumb-slot"></div>').join('');
+  }
+
+  async function runCaptureSequence(){
+    shots = [];
+    renderThumbs();
+    try{ await startCamera(); } catch(err){
+      alert('Não consegui acessar a câmera: ' + err.message);
+      showScreen('startScreen');
+      return;
+    }
+    await sleep(600);
+    for(let i=0;i<6;i++){
+      $('shotCounter').textContent = `Foto ${i+1} de 6`;
+      await runCountdown(3);
+      $('flashFx').classList.remove('go'); void $('flashFx').offsetWidth; $('flashFx').classList.add('go');
+      const dataUrl = cropToRatio($('camVideo'), CARD_W/CARD_H);
+      shots.push(dataUrl);
+      renderThumbs();
+      await sleep(500);
+    }
+    if(stream){ stream.getTracks().forEach(t=>t.stop()); }
+    buildSheet();
+    showScreen('reviewScreen');
+    fitSheetToScreen();
+  }
+
+  // ---------- montagem da folha ----------
+  function wmStyleFor(position, sizeMm){
+    const margin = 3; // mm de respiro da marca em relação à borda da foto
+    switch(position){
+      case 'bl': return `left:${margin}mm; bottom:${margin}mm; width:${sizeMm}mm;`;
+      case 'tr': return `right:${margin}mm; top:${margin}mm; width:${sizeMm}mm;`;
+      case 'center': return `left:50%; top:50%; width:${sizeMm}mm; transform:translate(-50%,-50%);`;
+      case 'br':
+      default: return `right:${margin}mm; bottom:${margin}mm; width:${sizeMm}mm;`;
+    }
+  }
+
+  function buildSheet(){
+    const sheet = $('sheet');
+    sheet.innerHTML = '';
+    POSITIONS.forEach((pos, i) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.left = pos.x + 'mm';
+      card.style.top = pos.y + 'mm';
+      card.style.width = CARD_W + 'mm';
+      card.style.height = CARD_H + 'mm';
+
+      const img = document.createElement('img');
+      img.className = 'shot';
+      img.src = shots[i];
+      card.appendChild(img);
+
+      if(cfg.wmDataUrl){
+        const wm = document.createElement('img');
+        wm.className = 'wm';
+        wm.src = cfg.wmDataUrl;
+        wm.style.opacity = (cfg.wmOpacity/100);
+        wm.style.cssText += wmStyleFor(cfg.wmPosition, cfg.wmSize);
+        card.appendChild(wm);
+      }
+      sheet.appendChild(card);
+    });
+  }
+
+  function fitSheetToScreen(){
+    const wrap = $('sheetScaleWrap');
+    const sheet = $('sheet');
+    // 210mm x 297mm -> pega proporção real via getBoundingClientRect após aplicar tamanho em mm
+    const availH = window.innerHeight * 0.62;
+    const availW = window.innerWidth * 0.9;
+    const sheetRatio = 210/297;
+    let h = availH, w = h*sheetRatio;
+    if(w > availW){ w = availW; h = w/sheetRatio; }
+    const scale = w / (210 * 3.7795); // 210mm em px de referência (96dpi) ~ 793.7px
+    sheet.style.transform = `scale(${scale})`;
+    sheet.style.transformOrigin = 'top left';
+    wrap.style.width = w + 'px';
+    wrap.style.height = h + 'px';
+  }
+  window.addEventListener('resize', () => { if($('reviewScreen').classList.contains('active')) fitSheetToScreen(); });
+
+  // ---------- navegação principal ----------
+  $('btnStart').addEventListener('click', () => { showScreen('explainScreen'); });
+  $('btnExplainStart').addEventListener('click', () => { showScreen('captureScreen'); runCaptureSequence(); });
+  $('btnRetake').addEventListener('click', () => { showScreen('captureScreen'); runCaptureSequence(); });
+  $('btnConfirm').addEventListener('click', () => {
+    // não usamos showScreen aqui de propósito: a tela de revisão (com a
+    // folha #sheet) precisa continuar "ativa" por baixo, senão a impressão
+    // sai em branco. Mostramos "Imprimindo..." como camada por cima.
+    $('printingScreen').classList.add('overlay-visible');
+    let returned = false;
+    const goHome = () => {
+      if(returned) return;
+      returned = true;
+      $('printingScreen').classList.remove('overlay-visible');
+      showScreen('startScreen');
+    };
+    setTimeout(() => {
+      window.print();
+      // no Android o evento 'afterprint' nem sempre dispara, entao um
+      // temporizador fixo garante o retorno de qualquer forma
+      setTimeout(goHome, 9000);
+    }, 300);
+    window.addEventListener('afterprint', goHome, { once:true });
+  });
+
+})();
+</script>
+</body>
+</html>
