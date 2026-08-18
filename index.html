@@ -3309,11 +3309,13 @@ var qrcode = function() {
     };
     setTimeout(() => {
       window.print();
-      // no Android o evento 'afterprint' nem sempre dispara, entao um
-      // temporizador fixo garante o retorno de qualquer forma
-      setTimeout(goHome, 120000);
+      // o evento 'afterprint' no Android dispara assim que a telinha de
+      // impressão fecha (não quando a impressora termina de verdade), então
+      // NÃO usamos ele pra voltar — só o temporizador fixo controla isso,
+      // calibrado com o tempo real medido na qualidade "normal" (1min45)
+      // mais uma folga de segurança.
+      setTimeout(goHome, 140000); // 2min20
     }, 300);
-    window.addEventListener('afterprint', goHome, { once:true });
   });
 
 })();
