@@ -315,7 +315,11 @@
     display:flex; position:fixed; inset:0; z-index:19;
     background: var(--curtain-deep);
   }
-  .print-icon{ font-size:5rem; margin-bottom:1.4rem; }
+  .print-icon{ font-size:5rem; margin-bottom:1.4rem; animation: printPulse 1.8s ease-in-out infinite; }
+  @keyframes printPulse{
+    0%,100%{ transform:scale(1); opacity:1; }
+    50%{ transform:scale(1.12); opacity:0.75; }
+  }
   .thanks-title{ font-family:'Baloo 2', sans-serif; font-size:3.4rem; font-weight:800; }
   .thanks-sub{ font-size:1.3rem; color:#e9def5; opacity:0.9; margin-top:0.8rem; }
 
@@ -479,8 +483,8 @@
   <!-- IMPRIMINDO / OBRIGADO -->
   <div class="screen" id="printingScreen">
     <div class="print-icon">🖨️</div>
-    <div class="thanks-title">Imprimindo... 🖨️✨</div>
-    <div class="thanks-sub">Obrigado por participar! Destaque sua foto quando sair ✂️💜</div>
+    <div class="thanks-title">Imprimindo, aguarde... 🖨️</div>
+    <div class="thanks-sub">Isso leva um minutinho. Quando sua folha sair, dobre nas linhas picotadas e destaque cada foto com cuidado ✂️💜</div>
     <div class="hashtag-chip">✨ #maisprintsnap ✨</div>
   </div>
 
@@ -3301,12 +3305,13 @@ var qrcode = function() {
       returned = true;
       $('printingScreen').classList.remove('overlay-visible');
       showScreen('startScreen');
+      goFullscreen(); // tentativa extra; só funciona de fato se vier de um toque real
     };
     setTimeout(() => {
       window.print();
       // no Android o evento 'afterprint' nem sempre dispara, entao um
       // temporizador fixo garante o retorno de qualquer forma
-      setTimeout(goHome, 9000);
+      setTimeout(goHome, 120000);
     }, 300);
     window.addEventListener('afterprint', goHome, { once:true });
   });
