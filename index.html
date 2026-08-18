@@ -112,14 +112,29 @@
     94%{ transform: rotate(2deg); }
   }
   .start-btn:active{ transform: translateY(8px); box-shadow: 0 2px 0 var(--mp-purple-dark), 0 6px 16px rgba(0,0,0,0.4); }
-  .btn-row{ display:flex; gap:1.2rem; flex-wrap:wrap; justify-content:center; margin-top:3rem; }
-  .btn-row .start-btn{ margin-top:0; animation:none; }
-  .qr-btn{
-    padding:1.6rem 3.4rem; font-size:1.3rem; font-weight:700;
-    font-family:'Baloo 2', sans-serif;
-    background: transparent; color:#ffffff; border:2px solid var(--mp-glow); border-radius:100px;
-    cursor:pointer;
+
+  .mode-prompt{
+    font-family:'Baloo 2', sans-serif; font-size:1.4rem; font-weight:700;
+    color:#e9def5; margin-top:2.4rem; margin-bottom:1.4rem;
   }
+  .mode-row{
+    display:flex; gap:1.6rem; flex-wrap:wrap; justify-content:center;
+    max-width:44rem;
+  }
+  .mode-card{
+    width:15.5rem; padding:2.2rem 1.6rem; border-radius:24px;
+    background:rgba(255,255,255,0.06); border:2px solid var(--mp-purple);
+    display:flex; flex-direction:column; align-items:center; gap:0.6rem;
+    cursor:pointer; transition:transform .1s ease, background .2s ease;
+    box-shadow:0 10px 0 var(--mp-purple-dark), 0 14px 30px rgba(0,0,0,0.4);
+  }
+  .mode-card:active{ transform:translateY(8px); box-shadow:0 2px 0 var(--mp-purple-dark), 0 6px 16px rgba(0,0,0,0.4); }
+  .mode-icon{ font-size:3.4rem; }
+  .mode-title{
+    font-family:'Baloo 2', sans-serif; font-size:1.5rem; font-weight:800; color:#fff;
+    text-align:center; line-height:1.15;
+  }
+  .mode-sub{ font-size:0.95rem; color:#e9def5; opacity:0.85; text-align:center; line-height:1.35; }
 
   .gear{
     position:absolute; bottom:1.4rem; right:1.6rem; width:3rem; height:3rem;
@@ -372,12 +387,19 @@
   <!-- TELA INICIAL -->
   <div class="screen active" id="startScreen">
     <img class="mp-logo" id="mpLogo" alt="Mais Print" src="">
-    <div class="brand-title">Toque pra começar 🎉</div>
-    <div class="brand-sub">Vamos tirar 6 fotos suas. Sorria! 😄📸</div>
     <div class="hashtag-chip">✨ #maisprintsnap ✨</div>
-    <div class="btn-row">
-      <button class="start-btn" id="btnStart">Bora! ✦</button>
-      <button class="qr-btn" id="btnQrStart">📱 Imprimir minhas fotos</button>
+    <div class="mode-prompt">O que você quer fazer? 👇</div>
+    <div class="mode-row">
+      <button class="mode-card" id="btnStart">
+        <span class="mode-icon">📸</span>
+        <span class="mode-title">Tirar fotos agora</span>
+        <span class="mode-sub">A câmera tira 6 fotos suas na hora</span>
+      </button>
+      <button class="mode-card" id="btnQrStart">
+        <span class="mode-icon">🖼️</span>
+        <span class="mode-title">Já tenho minhas fotos</span>
+        <span class="mode-sub">Manda do seu celular pra gente imprimir</span>
+      </button>
     </div>
     <div class="gear" id="btnAdmin" title="Configurações">⚙</div>
   </div>
