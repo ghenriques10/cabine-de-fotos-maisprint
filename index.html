@@ -486,6 +486,7 @@
     <div class="thanks-title">Imprimindo, aguarde... 🖨️</div>
     <div class="thanks-sub">Isso leva um minutinho. Quando sua folha sair, dobre nas linhas picotadas e destaque cada foto com cuidado ✂️💜</div>
     <div class="hashtag-chip">✨ #maisprintsnap ✨</div>
+    <button class="qr-cancel" id="btnPrintDone" style="margin-top:2rem;">Já saiu! Próxima pessoa 🎉</button>
   </div>
 
   <!-- ADMIN -->
@@ -3316,6 +3317,7 @@ var qrcode = function() {
       // mais uma folga de segurança.
       setTimeout(goHome, 140000); // 2min20
     }, 300);
+    $('btnPrintDone').onclick = goHome;
   });
 
 })();
