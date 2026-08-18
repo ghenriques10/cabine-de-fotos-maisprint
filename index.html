@@ -2997,8 +2997,8 @@ var qrcode = function() {
     const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
     if(req) req.call(el).catch(()=>{});
   }
-  document.addEventListener('click', goFullscreen, { once:true });
-  document.addEventListener('touchend', goFullscreen, { once:true });
+  document.addEventListener('click', () => { if(!document.fullscreenElement) goFullscreen(); });
+  document.addEventListener('touchend', () => { if(!document.fullscreenElement) goFullscreen(); });
   $('btnFullscreen').addEventListener('click', goFullscreen);
 
   $('btnAdmin').addEventListener('click', ()=>{ loadAdminUI(); showScreen('adminScreen'); });
