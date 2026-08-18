@@ -275,6 +275,24 @@
   }
   .wm-preview{ width:60px; height:60px; border-radius:8px; background:repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50%/16px 16px; overflow:hidden; display:flex;align-items:center;justify-content:center; }
   .wm-preview img{ max-width:100%; max-height:100%; }
+  .wm-drag-wrap{ display:flex; flex-direction:column; align-items:center; gap:0.6rem; padding:1.2rem 0; }
+  .wm-drag-canvas{
+    position:relative; width:198px; height:209px; background:#fff;
+    border:1px solid rgba(0,0,0,0.4); border-radius:4px; touch-action:none;
+    box-shadow:0 6px 20px rgba(0,0,0,0.35);
+  }
+  .wm-photo-area{
+    position:absolute; left:13.2px; top:13.2px; width:171.6px; height:165px;
+    background:repeating-conic-gradient(#ccc 0% 25%, #ddd 0% 50%) 50%/10px 10px;
+    border:1px dashed rgba(0,0,0,0.35);
+  }
+  .wm-drag-thumb{
+    position:absolute; cursor:grab; touch-action:none;
+    border:1px dashed var(--mp-glow); box-sizing:content-box;
+  }
+  .wm-drag-thumb img{ width:100%; height:100%; display:block; pointer-events:none; }
+  .wm-drag-thumb:active{ cursor:grabbing; }
+  .wm-drag-hint{ font-size:0.85rem; opacity:0.65; }
   .admin-close{
     margin-top:2rem; align-self:flex-start;
     font-family:'Baloo 2', sans-serif;
@@ -395,16 +413,18 @@
       <input type="range" id="wmOpacity" min="10" max="100" value="70">
     </div>
 
-    <div class="admin-row">
-      <div>
+    <div class="admin-row" style="flex-direction:column; align-items:stretch;">
+      <div style="margin-bottom:0.4rem;">
         <div class="admin-label">Posição da marca d'água</div>
+        <div class="admin-hint">Arraste pra qualquer lugar — inclusive na moldura branca</div>
       </div>
-      <select id="wmPosition">
-        <option value="br">Canto inferior direito</option>
-        <option value="bl">Canto inferior esquerdo</option>
-        <option value="center">Centralizada</option>
-        <option value="tr">Canto superior direito</option>
-      </select>
+      <div class="wm-drag-wrap">
+        <div class="wm-drag-canvas" id="wmDragCanvas">
+          <div class="wm-photo-area"></div>
+          <div class="wm-drag-thumb" id="wmDragThumb"><img id="wmDragThumbImg" src=""></div>
+        </div>
+        <div class="wm-drag-hint">Área cinza = foto · Área branca = moldura</div>
+      </div>
     </div>
 
     <div class="admin-row">
@@ -461,6 +481,11 @@
   document.getElementById('mpLogo').src = LOGO_DATA_URL;
 
   const CARD_W = 78, CARD_H = 75;
+  // moldura completa (foto + espaço branco): 90x95mm, com 6mm nas laterais
+  // e no topo, 14mm embaixo. Isso já existe no espaçamento do gabarito A4.
+  const FRAME_MARGIN = { left:6, top:6, right:6, bottom:14 };
+  const FRAME_W = FRAME_MARGIN.left + CARD_W + FRAME_MARGIN.right;   // 90
+  const FRAME_H = FRAME_MARGIN.top + CARD_H + FRAME_MARGIN.bottom;   // 95
   const POSITIONS = [
     {x:21, y:12},  {x:111, y:12},
     {x:21, y:107}, {x:111, y:107},
@@ -471,23 +496,69 @@
   const cfg = {
     wmDataUrl: localStorage.getItem('cf_wm') || null,
     wmOpacity: parseInt(localStorage.getItem('cf_wm_opacity') || '70'),
-    wmPosition: localStorage.getItem('cf_wm_position') || 'br',
     wmSize: parseInt(localStorage.getItem('cf_wm_size') || '22'),
+    wmX: parseFloat(localStorage.getItem('cf_wm_x') || String(FRAME_W - 22 - 3)),
+    wmY: parseFloat(localStorage.getItem('cf_wm_y') || String(FRAME_H - 22 - 3)),
     camFacing: localStorage.getItem('cf_cam_facing') || 'user',
     countdownSeconds: parseInt(localStorage.getItem('cf_countdown') || '3'),
   };
 
   function loadAdminUI(){
     $('wmOpacity').value = cfg.wmOpacity;
-    $('wmPosition').value = cfg.wmPosition;
     $('wmSize').value = cfg.wmSize;
     $('camFacing').value = cfg.camFacing;
     $('countdownSeconds').value = cfg.countdownSeconds;
     renderWmPreview();
+    updateDragThumb();
   }
   function renderWmPreview(){
     $('wmPreview').innerHTML = cfg.wmDataUrl ? `<img src="${cfg.wmDataUrl}">` : '';
   }
+
+  // ---------- arraste livre da marca d'água (canvas 198x209px = 90x95mm) ----------
+  const WM_SCALE = 2.2; // px por mm (198/90 e 209/95)
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+  function updateDragThumb(){
+    const thumb = $('wmDragThumb');
+    const img = $('wmDragThumbImg');
+    if(!cfg.wmDataUrl){ thumb.style.display = 'none'; return; }
+    thumb.style.display = 'block';
+    img.src = cfg.wmDataUrl;
+    const widthPx = cfg.wmSize * WM_SCALE;
+    thumb.style.width = widthPx + 'px';
+    thumb.style.left = (cfg.wmX * WM_SCALE) + 'px';
+    thumb.style.top = (cfg.wmY * WM_SCALE) + 'px';
+  }
+  (function setupDrag(){
+    const canvas = $('wmDragCanvas');
+    const thumb = $('wmDragThumb');
+    let dragging = false, startPx = {x:0,y:0}, startLeft = 0, startTop = 0;
+    thumb.addEventListener('pointerdown', (e)=>{
+      dragging = true;
+      thumb.setPointerCapture(e.pointerId);
+      startPx = { x:e.clientX, y:e.clientY };
+      startLeft = parseFloat(thumb.style.left) || 0;
+      startTop = parseFloat(thumb.style.top) || 0;
+    });
+    thumb.addEventListener('pointermove', (e)=>{
+      if(!dragging) return;
+      const dx = e.clientX - startPx.x, dy = e.clientY - startPx.y;
+      const thumbW = thumb.offsetWidth, thumbH = thumb.offsetHeight;
+      const newLeft = clamp(startLeft + dx, 0, canvas.clientWidth - thumbW);
+      const newTop = clamp(startTop + dy, 0, canvas.clientHeight - thumbH);
+      thumb.style.left = newLeft + 'px';
+      thumb.style.top = newTop + 'px';
+    });
+    thumb.addEventListener('pointerup', ()=>{
+      if(!dragging) return;
+      dragging = false;
+      cfg.wmX = (parseFloat(thumb.style.left) || 0) / WM_SCALE;
+      cfg.wmY = (parseFloat(thumb.style.top) || 0) / WM_SCALE;
+      localStorage.setItem('cf_wm_x', cfg.wmX);
+      localStorage.setItem('cf_wm_y', cfg.wmY);
+    });
+  })();
+
   $('wmInput').addEventListener('change', (e)=>{
     const file = e.target.files[0];
     if(!file) return;
@@ -496,12 +567,16 @@
       cfg.wmDataUrl = reader.result;
       localStorage.setItem('cf_wm', cfg.wmDataUrl);
       renderWmPreview();
+      updateDragThumb();
     };
     reader.readAsDataURL(file);
   });
   $('wmOpacity').addEventListener('input', e => { cfg.wmOpacity = parseInt(e.target.value); localStorage.setItem('cf_wm_opacity', cfg.wmOpacity); });
-  $('wmPosition').addEventListener('change', e => { cfg.wmPosition = e.target.value; localStorage.setItem('cf_wm_position', cfg.wmPosition); });
-  $('wmSize').addEventListener('input', e => { cfg.wmSize = parseInt(e.target.value); localStorage.setItem('cf_wm_size', cfg.wmSize); });
+  $('wmSize').addEventListener('input', e => {
+    cfg.wmSize = parseInt(e.target.value);
+    localStorage.setItem('cf_wm_size', cfg.wmSize);
+    updateDragThumb();
+  });
   $('camFacing').addEventListener('change', e => { cfg.camFacing = e.target.value; localStorage.setItem('cf_cam_facing', cfg.camFacing); });
   $('countdownSeconds').addEventListener('change', e => { cfg.countdownSeconds = parseInt(e.target.value); localStorage.setItem('cf_countdown', cfg.countdownSeconds); });
 
@@ -583,17 +658,6 @@
   }
 
   // ---------- montagem da folha ----------
-  function wmStyleFor(position, sizeMm){
-    const margin = 3; // mm de respiro da marca em relação à borda da foto
-    switch(position){
-      case 'bl': return `left:${margin}mm; bottom:${margin}mm; width:${sizeMm}mm;`;
-      case 'tr': return `right:${margin}mm; top:${margin}mm; width:${sizeMm}mm;`;
-      case 'center': return `left:50%; top:50%; width:${sizeMm}mm; transform:translate(-50%,-50%);`;
-      case 'br':
-      default: return `right:${margin}mm; bottom:${margin}mm; width:${sizeMm}mm;`;
-    }
-  }
-
   function buildSheet(){
     const sheet = $('sheet');
     sheet.innerHTML = '';
@@ -609,16 +673,23 @@
       img.className = 'shot';
       img.src = shots[i];
       card.appendChild(img);
+      sheet.appendChild(card);
 
       if(cfg.wmDataUrl){
+        // a marca d'água fica FORA do card da foto (que tem overflow:hidden
+        // pra recortar a foto), pra poder ocupar a moldura branca também.
+        // Coordenadas são relativas ao canto superior-esquerdo da moldura
+        // completa de 90x95mm (foto - margem esquerda/topo).
         const wm = document.createElement('img');
         wm.className = 'wm';
         wm.src = cfg.wmDataUrl;
+        wm.style.position = 'absolute';
+        wm.style.left = (pos.x - FRAME_MARGIN.left + cfg.wmX) + 'mm';
+        wm.style.top = (pos.y - FRAME_MARGIN.top + cfg.wmY) + 'mm';
+        wm.style.width = cfg.wmSize + 'mm';
         wm.style.opacity = (cfg.wmOpacity/100);
-        wm.style.cssText += wmStyleFor(cfg.wmPosition, cfg.wmSize);
-        card.appendChild(wm);
+        sheet.appendChild(wm);
       }
-      sheet.appendChild(card);
     });
   }
 
