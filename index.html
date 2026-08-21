@@ -197,6 +197,38 @@
   }
   .upload-progress{ font-size:1rem; color:#e9def5; margin-top:1rem; }
 
+  /* ---------- pareamento PC (dentro do admin) ---------- */
+  .pc-pin-display{
+    font-family:'Baloo 2', sans-serif; font-size:3rem; font-weight:800;
+    letter-spacing:0.3em; color:var(--mp-glow); text-align:center;
+    background:rgba(255,255,255,0.06); border-radius:12px; padding:1rem;
+    margin-bottom:0.8rem;
+  }
+  .pc-status-line{ font-size:0.95rem; text-align:center; margin-bottom:0.8rem; }
+  .pc-status-line.connected{ color:#7ee08a; }
+  .pc-status-line.waiting{ color:var(--mp-glow); }
+
+  /* ---------- ESTACAO PC (roda no computador) ---------- */
+  #stationScreen{ display:none; }
+  #stationScreen.active{ display:flex; }
+  .station-pin-input{
+    font-family:'Baloo 2', sans-serif; font-size:2.4rem; letter-spacing:0.3em;
+    text-align:center; width:12rem; padding:0.8rem; border-radius:12px; border:none;
+    margin-bottom:1.4rem;
+  }
+  .station-connected-badge{
+    font-family:'Baloo 2', sans-serif; font-size:1.6rem; color:#7ee08a; margin-bottom:1rem;
+  }
+  #pcPrintImg{ display:none; }
+  @media print{
+    body.pc-mode *{ visibility:hidden; }
+    body.pc-mode #pcPrintImg{
+      visibility:visible; display:block !important; position:fixed; top:0; left:0;
+      width:210mm; height:297mm;
+    }
+    @page{ size:A4; margin:0; }
+  }
+
   /* ---------- CAPTURA ---------- */
   #captureScreen{ padding:0; }
   .cam-wrap{
@@ -439,6 +471,24 @@
     <div class="upload-progress" id="uploadProgress"></div>
   </div>
 
+  <!-- ESTACAO PC (roda no computador, imprime automático via --kiosk-printing) -->
+  <div class="screen" id="stationScreen">
+    <img class="mp-logo" style="width:min(20vw,200px);" alt="Mais Print" id="mpLogoStation" src="">
+    <div class="qr-title" style="font-size:1.8rem;">Estação de impressão 🖥️</div>
+    <div id="stationConnectBox">
+      <div class="qr-sub">Digita o PIN que apareceu no tablet:</div>
+      <input type="text" class="station-pin-input" id="stationPinInput" maxlength="4" inputmode="numeric" placeholder="0000">
+      <br>
+      <button class="start-btn" id="btnStationConnect" style="margin-top:1rem;">Conectar</button>
+    </div>
+    <div id="stationConnectedBox" style="display:none;">
+      <div class="station-connected-badge">✅ Conectado — PIN <span id="stationPinLabel"></span></div>
+      <div class="qr-sub" id="stationStatusText">Esperando fotos chegarem do tablet...</div>
+      <button class="qr-cancel" id="btnStationDisconnect" style="margin-top:1.4rem;">Desconectar</button>
+    </div>
+    <img id="pcPrintImg" alt="folha para impressão">
+  </div>
+
   <!-- CAPTURA -->
   <div class="screen" id="captureScreen">
     <div class="cam-wrap">
@@ -567,6 +617,16 @@
         <div class="admin-hint">Esconde a barra do navegador — reative se sair sem querer</div>
       </div>
       <button class="file-btn" id="btnFullscreen">Entrar em tela cheia</button>
+    </div>
+
+    <div class="admin-row" style="flex-direction:column; align-items:stretch;">
+      <div style="margin-bottom:0.6rem;">
+        <div class="admin-label">Impressão automática via PC</div>
+        <div class="admin-hint">Pareia com um computador na mesma rede pra imprimir sem tocar em nada</div>
+      </div>
+      <div id="pcPairBox">
+        <button class="file-btn" id="btnPcGenerate">Gerar PIN de pareamento</button>
+      </div>
     </div>
 
     <button class="admin-close" id="btnAdminClose">Salvar e fechar</button>
@@ -2917,6 +2977,7 @@ var qrcode = function() {
     wmY: parseFloat(localStorage.getItem('cf_wm_y') || String(FRAME_H - 22 - 3)),
     camFacing: localStorage.getItem('cf_cam_facing') || 'user',
     countdownSeconds: parseInt(localStorage.getItem('cf_countdown') || '3'),
+    pcPin: localStorage.getItem('cf_pc_pin') || null,
   };
 
   function loadAdminUI(){
@@ -2926,6 +2987,7 @@ var qrcode = function() {
     $('countdownSeconds').value = cfg.countdownSeconds;
     renderWmPreview();
     updateDragThumb();
+    renderPcPairUI();
   }
   function renderWmPreview(){
     $('wmPreview').innerHTML = cfg.wmDataUrl ? `<img src="${cfg.wmDataUrl}">` : '';
@@ -3084,6 +3146,45 @@ var qrcode = function() {
   }
 
   // ---------- montagem da folha ----------
+  function loadImg(src){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  async function renderSheetToCanvas(){
+    const DPI = 300;
+    const PX = DPI/25.4; // px por mm
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(210*PX);
+    canvas.height = Math.round(297*PX);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#faf6ef';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    const wmImg = cfg.wmDataUrl ? await loadImg(cfg.wmDataUrl) : null;
+
+    for(let i=0;i<POSITIONS.length;i++){
+      const pos = POSITIONS[i];
+      const img = await loadImg(shots[i]);
+      ctx.drawImage(img, pos.x*PX, pos.y*PX, CARD_W*PX, CARD_H*PX);
+      if(wmImg){
+        const wx = (pos.x - FRAME_MARGIN.left + cfg.wmX) * PX;
+        const wy = (pos.y - FRAME_MARGIN.top + cfg.wmY) * PX;
+        const ww = cfg.wmSize * PX;
+        const wh = ww * (wmImg.naturalHeight / wmImg.naturalWidth);
+        ctx.save();
+        ctx.globalAlpha = cfg.wmOpacity/100;
+        ctx.drawImage(wmImg, wx, wy, ww, wh);
+        ctx.restore();
+      }
+    }
+    return canvas;
+  }
+
   function buildSheet(){
     const sheet = $('sheet');
     sheet.innerHTML = '';
@@ -3139,6 +3240,143 @@ var qrcode = function() {
   // ---------- modo de upload (aberto no celular do convidado via QR) ----------
   const urlParams = new URLSearchParams(location.search);
   const uploadSession = urlParams.get('upload');
+  const stationMode = urlParams.get('estacao') === 'pc';
+
+  // ---------- ESTAÇÃO PC (roda no computador) ----------
+  if(stationMode){
+    $('startScreen').classList.remove('active');
+    $('stationScreen').classList.add('active');
+    document.body.classList.add('pc-mode');
+    const logoEl = $('mpLogoStation'); if(logoEl) logoEl.src = LOGO_DATA_URL;
+
+    let stationPin = localStorage.getItem('mp_station_pin');
+    let stationHeartbeatTimer = null, stationJobTimer = null;
+
+    function showConnected(pin){
+      $('stationConnectBox').style.display = 'none';
+      $('stationConnectedBox').style.display = 'block';
+      $('stationPinLabel').textContent = pin;
+    }
+
+    async function stationHeartbeat(){
+      if(!sb || !stationPin) return;
+      const blob = new Blob([JSON.stringify({ ts: Date.now() })], { type:'application/json' });
+      try{ await sb.storage.from(BUCKET).upload(`pcqueue/${stationPin}/status.json`, blob, { upsert:true, contentType:'application/json' }); }
+      catch(err){ /* tenta de novo no próximo ciclo */ }
+    }
+
+    async function stationCheckJobs(){
+      if(!sb || !stationPin) return;
+      try{
+        const { data, error } = await sb.storage.from(BUCKET).list(`pcqueue/${stationPin}/jobs`);
+        if(error || !data) return;
+        const files = data.filter(f => f.name && f.name !== '.emptyFolderPlaceholder');
+        if(files.length === 0) return;
+        const job = files[0];
+        const { data: fileData, error: dlErr } = await sb.storage.from(BUCKET).download(`pcqueue/${stationPin}/jobs/${job.name}`);
+        if(dlErr) return;
+        const blobUrl = URL.createObjectURL(fileData);
+        await new Promise((resolve) => {
+          const imgEl = $('pcPrintImg');
+          imgEl.onload = resolve;
+          imgEl.src = blobUrl;
+        });
+        $('stationStatusText').textContent = 'Imprimindo...';
+        window.print();
+        await sb.storage.from(BUCKET).remove([`pcqueue/${stationPin}/jobs/${job.name}`]);
+        $('stationStatusText').textContent = 'Última impressão: ' + new Date().toLocaleTimeString('pt-BR');
+      } catch(err){ /* tenta de novo no próximo ciclo */ }
+    }
+
+    function startStationLoops(){
+      stationHeartbeat();
+      stationHeartbeatTimer = setInterval(stationHeartbeat, 5000);
+      stationJobTimer = setInterval(stationCheckJobs, 2000);
+    }
+
+    if(stationPin){
+      showConnected(stationPin);
+      startStationLoops();
+    }
+
+    $('btnStationConnect').addEventListener('click', () => {
+      const pin = $('stationPinInput').value.trim();
+      if(!/^\d{4}$/.test(pin)){ alert('Digita os 4 números do PIN.'); return; }
+      stationPin = pin;
+      localStorage.setItem('mp_station_pin', pin);
+      showConnected(pin);
+      startStationLoops();
+    });
+
+    $('btnStationDisconnect').addEventListener('click', () => {
+      localStorage.removeItem('mp_station_pin');
+      if(stationHeartbeatTimer) clearInterval(stationHeartbeatTimer);
+      if(stationJobTimer) clearInterval(stationJobTimer);
+      stationPin = null;
+      $('stationConnectBox').style.display = 'block';
+      $('stationConnectedBox').style.display = 'none';
+      $('stationPinInput').value = '';
+    });
+  }
+
+  // ---------- pareamento PC (lado tablet, dentro do admin) ----------
+  let pcHeartbeatCheckTimer = null;
+  let pcConnected = false;
+
+  function renderPcPairUI(){
+    const box = $('pcPairBox');
+    if(!cfg.pcPin){
+      box.innerHTML = `<button class="file-btn" id="btnPcGenerate">Gerar PIN de pareamento</button>`;
+      $('btnPcGenerate').addEventListener('click', generatePcPin);
+      return;
+    }
+    box.innerHTML = `
+      <div class="pc-pin-display">${cfg.pcPin}</div>
+      <div class="pc-status-line ${pcConnected ? 'connected' : 'waiting'}" id="pcStatusLine">
+        ${pcConnected ? '✅ PC conectado' : '⏳ Digite esse PIN no computador...'}
+      </div>
+      <button class="file-btn" id="btnPcDisconnect" style="width:100%;">Desconectar / gerar novo PIN</button>
+    `;
+    $('btnPcDisconnect').addEventListener('click', disconnectPc);
+  }
+
+  function generatePcPin(){
+    cfg.pcPin = String(Math.floor(1000 + Math.random()*9000));
+    localStorage.setItem('cf_pc_pin', cfg.pcPin);
+    pcConnected = false;
+    renderPcPairUI();
+    startPcHeartbeatCheck();
+  }
+
+  function disconnectPc(){
+    cfg.pcPin = null;
+    localStorage.removeItem('cf_pc_pin');
+    pcConnected = false;
+    if(pcHeartbeatCheckTimer) clearInterval(pcHeartbeatCheckTimer);
+    renderPcPairUI();
+  }
+
+  async function checkPcHeartbeat(){
+    if(!sb || !cfg.pcPin) return;
+    try{
+      const { data, error } = await sb.storage.from(BUCKET).list(`pcqueue/${cfg.pcPin}`);
+      if(error || !data) return;
+      const statusFile = data.find(f => f.name === 'status.json');
+      const wasConnected = pcConnected;
+      // considera conectado se o arquivo de status foi atualizado nos últimos 15s
+      pcConnected = !!statusFile && (Date.now() - new Date(statusFile.updated_at || statusFile.created_at).getTime() < 15000);
+      if(pcConnected !== wasConnected) renderPcPairUI();
+    } catch(err){ /* tenta de novo no próximo ciclo */ }
+  }
+
+  function startPcHeartbeatCheck(){
+    if(pcHeartbeatCheckTimer) clearInterval(pcHeartbeatCheckTimer);
+    checkPcHeartbeat();
+    pcHeartbeatCheckTimer = setInterval(checkPcHeartbeat, 3000);
+  }
+
+  if(!stationMode && cfg.pcPin){ startPcHeartbeatCheck(); }
+
 
   function compressFileToDataUrl(file, targetRatio){
     return new Promise((resolve, reject) => {
@@ -3288,7 +3526,39 @@ var qrcode = function() {
   $('btnStart').addEventListener('click', () => { showScreen('explainScreen'); });
   $('btnExplainStart').addEventListener('click', () => { showScreen('captureScreen'); runCaptureSequence(); });
   $('btnRetake').addEventListener('click', () => { showScreen('captureScreen'); runCaptureSequence(); });
+  async function sendToPcQueue(){
+    $('printingScreen').classList.add('overlay-visible');
+    $('btnPrintDone').style.display = 'none';
+    $('printingScreen').querySelector('.thanks-title').textContent = 'Enviando pra impressão... 🖨️✨';
+    $('printingScreen').querySelector('.thanks-sub').textContent = 'O computador vai imprimir sozinho em instantes. Assim que sair, dobre nas linhas picotadas e destaque com cuidado ✂️💜';
+    try{
+      const canvas = await renderSheetToCanvas();
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+      const jobName = `${Date.now()}.jpg`;
+      await sb.storage.from(BUCKET).upload(`pcqueue/${cfg.pcPin}/jobs/${jobName}`, blob, { contentType:'image/jpeg' });
+      // espera o PC apagar o arquivo (sinal de que já imprimiu) por até 40s
+      let tries = 0;
+      const poll = setInterval(async () => {
+        tries++;
+        const { data } = await sb.storage.from(BUCKET).list(`pcqueue/${cfg.pcPin}/jobs`);
+        const stillThere = data && data.some(f => f.name === jobName);
+        if(!stillThere || tries > 20){
+          clearInterval(poll);
+          $('printingScreen').classList.remove('overlay-visible');
+          showScreen('startScreen');
+          goFullscreen();
+        }
+      }, 2000);
+    } catch(err){
+      $('printingScreen').querySelector('.thanks-sub').textContent = 'Deu erro enviando pro PC. Tenta de novo ou use a impressão manual.';
+    }
+  }
+
   $('btnConfirm').addEventListener('click', () => {
+    if(pcConnected && cfg.pcPin){
+      sendToPcQueue();
+      return;
+    }
     // camada sobreposta: a tela de revisão (com a folha #sheet) continua
     // ativa por baixo, só mostramos o tutorial por cima dela
     $('tutoScreen').classList.add('overlay-visible');
@@ -3300,6 +3570,9 @@ var qrcode = function() {
     // folha #sheet) precisa continuar "ativa" por baixo, senão a impressão
     // sai em branco. Mostramos "Imprimindo..." como camada por cima.
     $('printingScreen').classList.add('overlay-visible');
+    $('printingScreen').querySelector('.thanks-title').textContent = 'Imprimindo, aguarde... 🖨️';
+    $('printingScreen').querySelector('.thanks-sub').textContent = 'Isso leva um minutinho. Quando sua folha sair, dobre nas linhas picotadas e destaque cada foto com cuidado ✂️💜';
+    $('btnPrintDone').style.display = '';
     let returned = false;
     const goHome = () => {
       if(returned) return;
