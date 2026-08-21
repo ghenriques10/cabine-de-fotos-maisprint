@@ -3262,8 +3262,14 @@ var qrcode = function() {
     async function stationHeartbeat(){
       if(!sb || !stationPin) return;
       const blob = new Blob([JSON.stringify({ ts: Date.now() })], { type:'application/json' });
-      try{ await sb.storage.from(BUCKET).upload(`pcqueue/${stationPin}/status.json`, blob, { upsert:true, contentType:'application/json' }); }
-      catch(err){ /* tenta de novo no próximo ciclo */ }
+      try{
+        const { error } = await sb.storage.from(BUCKET).upload(`pcqueue/${stationPin}/status.json`, blob, { upsert:true, contentType:'application/json' });
+        if(error){
+          console.warn('stationHeartbeat erro:', error);
+          $('stationStatusText').textContent = 'Aviso: sinal de vida falhou (' + (error.message || 'erro desconhecido') + ')';
+        }
+      }
+      catch(err){ console.warn('stationHeartbeat exceção:', err); }
     }
 
     async function stationCheckJobs(){
@@ -3547,7 +3553,12 @@ var qrcode = function() {
       const canvas = await renderSheetToCanvas();
       const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
       const jobName = `${Date.now()}.jpg`;
-      await sb.storage.from(BUCKET).upload(`pcqueue/${cfg.pcPin}/jobs/${jobName}`, blob, { contentType:'image/jpeg' });
+      const { error: uploadErr } = await sb.storage.from(BUCKET).upload(`pcqueue/${cfg.pcPin}/jobs/${jobName}`, blob, { contentType:'image/jpeg' });
+      if(uploadErr){
+        console.warn('sendToPcQueue erro no upload:', uploadErr);
+        $('printingScreen').querySelector('.thanks-sub').textContent = 'Erro enviando pro PC: ' + (uploadErr.message || 'desconhecido');
+        return;
+      }
       // espera o PC apagar o arquivo (sinal de que já imprimiu) por até 40s
       let tries = 0;
       const poll = setInterval(async () => {
