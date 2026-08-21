@@ -398,6 +398,32 @@
     padding:0.9rem 2.2rem; border-radius:100px; border:none; background:var(--mp-purple); color:#ffffff; font-weight:700; font-size:1.1rem; cursor:pointer;
   }
 
+  /* ---------- RELATORIOS / EVENTOS ---------- */
+  #reportsScreen{ align-items:stretch; justify-content:flex-start; text-align:left; padding:3vh 6vw; overflow-y:auto; }
+  .reports-title{ font-family:'Baloo 2', sans-serif; font-size:2rem; font-weight:800; margin-bottom:1.2rem; }
+  .pw-gate{ display:flex; flex-direction:column; align-items:center; justify-content:center; height:60vh; gap:1rem; }
+  .pw-gate input{ font-size:1.4rem; padding:0.8rem 1.2rem; border-radius:12px; border:none; text-align:center; width:16rem; }
+  .pw-gate .err{ color:#ff8787; font-size:0.9rem; min-height:1.2rem; }
+  .event-form{ background:rgba(255,255,255,0.06); border-radius:14px; padding:1.2rem; margin-bottom:1.6rem; display:flex; flex-direction:column; gap:0.7rem; }
+  .event-form label{ font-size:0.85rem; opacity:0.8; display:block; margin-bottom:0.2rem; }
+  .event-form input[type=text], .event-form input[type=datetime-local]{
+    width:100%; padding:0.6rem 0.8rem; border-radius:8px; border:none; font-size:1rem;
+  }
+  .event-form .row{ display:flex; gap:1rem; flex-wrap:wrap; }
+  .event-form .row > div{ flex:1; min-width:11rem; }
+  .event-form .check-row{ display:flex; align-items:center; gap:0.5rem; }
+  .event-card{
+    background:rgba(255,255,255,0.06); border-radius:14px; padding:1rem 1.2rem; margin-bottom:0.9rem;
+    border:1px solid rgba(255,255,255,0.1);
+  }
+  .event-card-head{ display:flex; justify-content:space-between; align-items:center; cursor:pointer; gap:0.6rem; }
+  .event-card-name{ font-family:'Baloo 2', sans-serif; font-weight:700; font-size:1.15rem; }
+  .event-test-badge{ background:#e8b84b; color:#2a1400; font-size:0.7rem; font-weight:700; padding:0.15rem 0.5rem; border-radius:100px; margin-left:0.5rem; }
+  .event-count{ font-family:'Baloo 2', sans-serif; font-weight:800; color:var(--mp-glow); font-size:1.3rem; }
+  .event-range{ font-size:0.82rem; opacity:0.7; margin-top:0.2rem; }
+  .event-times{ margin-top:0.8rem; padding-top:0.8rem; border-top:1px solid rgba(255,255,255,0.1); display:none; max-height:12rem; overflow-y:auto; font-size:0.85rem; opacity:0.85; }
+  .event-times.open{ display:block; }
+  .event-times div{ padding:0.15rem 0; }
   @media print{
     body *{ visibility:hidden; }
     #sheet, #sheet *{ visibility:visible; }
@@ -630,7 +656,42 @@
       </div>
     </div>
 
+    <div class="admin-row">
+      <div>
+        <div class="admin-label">Relatórios e eventos</div>
+        <div class="admin-hint">Quantas fotos foram impressas, por evento</div>
+      </div>
+      <button class="file-btn" id="btnOpenReports">📊 Abrir relatórios</button>
+    </div>
+
     <button class="admin-close" id="btnAdminClose">Salvar e fechar</button>
+  </div>
+
+  <!-- RELATORIOS / EVENTOS -->
+  <div class="screen" id="reportsScreen">
+    <div class="reports-title">📊 Relatórios e eventos</div>
+
+    <div class="pw-gate" id="reportsGate">
+      <div id="gateLabel" style="font-size:1.1rem;">Digite a senha</div>
+      <input type="password" id="gatePwInput" placeholder="Senha">
+      <div class="err" id="gateErr"></div>
+      <button class="start-btn" id="btnGateSubmit" style="margin-top:0;">Entrar</button>
+      <button class="qr-cancel" id="btnReportsBack">Voltar</button>
+    </div>
+
+    <div id="reportsContent" style="display:none;">
+      <div class="event-form">
+        <div><label>Nome do evento</label><input type="text" id="evName" placeholder="Ex: Aniversário João"></div>
+        <div class="row">
+          <div><label>Início</label><input type="datetime-local" id="evStart"></div>
+          <div><label>Fim</label><input type="datetime-local" id="evEnd"></div>
+        </div>
+        <div class="check-row"><input type="checkbox" id="evTest"><label for="evTest" style="margin:0;">Marcar como evento de teste</label></div>
+        <button class="upload-input-btn" id="btnCreateEvent" style="margin-top:0.4rem;">+ Criar evento</button>
+      </div>
+      <div id="eventsList"></div>
+      <button class="admin-close" id="btnReportsClose">Fechar relatórios</button>
+    </div>
   </div>
 
 </div>
@@ -2938,7 +2999,7 @@ var qrcode = function() {
 <script>
 (function(){
   const $ = (id) => document.getElementById(id);
-  const screens = ['startScreen','explainScreen','qrScreen','captureScreen','reviewScreen','printingScreen','adminScreen'];
+  const screens = ['startScreen','explainScreen','qrScreen','captureScreen','reviewScreen','printingScreen','adminScreen','reportsScreen'];
   function showScreen(id){
     screens.forEach(s => $(s).classList.toggle('active', s===id));
   }
@@ -3060,6 +3121,20 @@ var qrcode = function() {
   $('countdownSeconds').addEventListener('change', e => { cfg.countdownSeconds = parseInt(e.target.value); localStorage.setItem('cf_countdown', cfg.countdownSeconds); });
 
   // ---------- tela cheia (esconde a barra do Chrome) ----------
+  // ---------- manter a tela sempre acesa ----------
+  let wakeLock = null;
+  async function keepScreenAwake(){
+    if(!('wakeLock' in navigator)) return;
+    try{
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch(err){ /* alguns navegadores negam se a aba não estiver visível; tenta de novo depois */ }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible') keepScreenAwake();
+  });
+  keepScreenAwake();
+
   function goFullscreen(){
     const el = document.documentElement;
     const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
@@ -3071,6 +3146,106 @@ var qrcode = function() {
 
   $('btnAdmin').addEventListener('click', ()=>{ loadAdminUI(); showScreen('adminScreen'); });
   $('btnAdminClose').addEventListener('click', ()=>{ showScreen('startScreen'); });
+
+  // ---------- relatórios / eventos (protegido por senha) ----------
+  let reportsUnlocked = false;
+
+  function openReportsGate(){
+    $('gateErr').textContent = '';
+    $('gatePwInput').value = '';
+    if(reportsUnlocked){
+      $('reportsGate').style.display = 'none';
+      $('reportsContent').style.display = 'block';
+      loadReportsContent();
+      return;
+    }
+    $('reportsGate').style.display = 'flex';
+    $('reportsContent').style.display = 'none';
+    const hasPw = !!localStorage.getItem('cf_admin_pw');
+    $('gateLabel').textContent = hasPw ? 'Digite a senha' : 'Crie uma senha pros relatórios';
+  }
+
+  $('btnOpenReports').addEventListener('click', () => { showScreen('reportsScreen'); openReportsGate(); });
+  $('btnReportsBack').addEventListener('click', () => { showScreen('adminScreen'); });
+  $('btnReportsClose').addEventListener('click', () => { showScreen('adminScreen'); });
+
+  $('btnGateSubmit').addEventListener('click', () => {
+    const typed = $('gatePwInput').value;
+    const saved = localStorage.getItem('cf_admin_pw');
+    if(!saved){
+      if(typed.length < 4){ $('gateErr').textContent = 'Mínimo 4 caracteres.'; return; }
+      localStorage.setItem('cf_admin_pw', typed);
+      reportsUnlocked = true;
+      openReportsGate();
+      return;
+    }
+    if(typed === saved){
+      reportsUnlocked = true;
+      openReportsGate();
+    } else {
+      $('gateErr').textContent = 'Senha incorreta.';
+    }
+  });
+
+  $('btnCreateEvent').addEventListener('click', async () => {
+    const name = $('evName').value.trim();
+    const startVal = $('evStart').value;
+    const endVal = $('evEnd').value;
+    if(!name || !startVal || !endVal){ alert('Preenche nome, início e fim.'); return; }
+    const { error } = await sb.from('mp_events').insert({
+      name, starts_at: new Date(startVal).toISOString(), ends_at: new Date(endVal).toISOString(),
+      is_test: $('evTest').checked
+    });
+    if(error){ alert('Erro ao criar evento: ' + error.message); return; }
+    $('evName').value = ''; $('evStart').value = ''; $('evEnd').value = ''; $('evTest').checked = false;
+    loadReportsContent();
+  });
+
+  async function loadReportsContent(){
+    $('eventsList').innerHTML = '<div style="opacity:0.6;">Carregando...</div>';
+    const { data: events, error: evErr } = await sb.from('mp_events').select('*').order('starts_at', { ascending:false });
+    const { data: prints, error: prErr } = await sb.from('mp_prints').select('*').order('created_at', { ascending:true });
+    if(evErr || prErr){ $('eventsList').innerHTML = '<div style="opacity:0.6;">Erro ao carregar dados.</div>'; return; }
+    renderEventsList(events || [], prints || []);
+  }
+
+  function renderEventsList(events, prints){
+    const el = $('eventsList');
+    if(events.length === 0){ el.innerHTML = '<div style="opacity:0.6;">Nenhum evento criado ainda.</div>'; return; }
+    el.innerHTML = events.map((ev, idx) => {
+      const start = new Date(ev.starts_at), end = new Date(ev.ends_at);
+      const matched = prints.filter(p => {
+        const t = new Date(p.created_at).getTime();
+        return t >= start.getTime() && t <= end.getTime();
+      });
+      const timesHtml = matched.map(p => `<div>${new Date(p.created_at).toLocaleString('pt-BR')} — ${p.mode || '?'}</div>`).join('')
+        || '<div style="opacity:0.5;">Nenhuma impressão registrada ainda.</div>';
+      const testBadge = ev.is_test ? '<span class="event-test-badge">TESTE</span>' : '';
+      return `
+        <div class="event-card">
+          <div class="event-card-head" data-idx="${idx}">
+            <div>
+              <span class="event-card-name">${ev.name}${testBadge}</span>
+              <div class="event-range">${start.toLocaleString('pt-BR')} até ${end.toLocaleString('pt-BR')}</div>
+            </div>
+            <div class="event-count">${matched.length}</div>
+          </div>
+          <div class="event-times" id="evtimes-${idx}">${timesHtml}</div>
+        </div>
+      `;
+    }).join('');
+    el.querySelectorAll('.event-card-head').forEach(h => {
+      h.addEventListener('click', () => { $('evtimes-' + h.dataset.idx).classList.toggle('open'); });
+    });
+  }
+
+  // ---------- registro de impressões (pra alimentar os relatórios) ----------
+  let photoSourceMode = 'camera';
+  async function logPrint(via){
+    if(!sb) return;
+    try{ await sb.from('mp_prints').insert({ mode: `${photoSourceMode}-${via}` }); }
+    catch(err){ console.warn('logPrint erro:', err); }
+  }
 
   // ---------- captura ----------
   let stream = null;
@@ -3123,6 +3298,7 @@ var qrcode = function() {
   }
 
   async function runCaptureSequence(){
+    photoSourceMode = 'camera';
     shots = [];
     renderThumbs();
     try{ await startCamera(); } catch(err){
@@ -3512,6 +3688,7 @@ var qrcode = function() {
   }
 
   async function loadShotsFromSupabase(session){
+    photoSourceMode = 'qr';
     const loaded = [];
     for(let i=1;i<=6;i++){
       const { data, error } = await sb.storage.from(BUCKET).download(`${session}/${i}.jpg`);
@@ -3565,6 +3742,7 @@ var qrcode = function() {
         tries++;
         const { data } = await sb.storage.from(BUCKET).list(`pcqueue/${cfg.pcPin}/jobs`);
         const stillThere = data && data.some(f => f.name === jobName);
+        if(!stillThere){ logPrint('pc'); }
         if(!stillThere || tries > 20){
           clearInterval(poll);
           $('printingScreen').classList.remove('overlay-visible');
@@ -3606,6 +3784,7 @@ var qrcode = function() {
     };
     setTimeout(() => {
       window.print();
+      logPrint('tablet');
       // o evento 'afterprint' no Android dispara assim que a telinha de
       // impressão fecha (não quando a impressora termina de verdade), então
       // NÃO usamos ele pra voltar — só o temporizador fixo controla isso,
