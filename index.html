@@ -438,6 +438,7 @@
       </button>
     </div>
     <div class="gear" id="btnAdmin" title="Configurações">⚙</div>
+    <div id="pcStatusBadge" style="position:absolute; top:1.4rem; left:1.6rem; font-size:0.85rem; padding:0.4rem 0.9rem; border-radius:100px; background:rgba(255,255,255,0.08); color:#e9def5; z-index:5;"></div>
   </div>
 
   <!-- EXPLICACAO -->
@@ -3324,6 +3325,7 @@ var qrcode = function() {
   let pcConnected = false;
 
   function renderPcPairUI(){
+    updateStartBadge();
     const box = $('pcPairBox');
     if(!cfg.pcPin){
       box.innerHTML = `<button class="file-btn" id="btnPcGenerate">Gerar PIN de pareamento</button>`;
@@ -3338,6 +3340,14 @@ var qrcode = function() {
       <button class="file-btn" id="btnPcDisconnect" style="width:100%;">Desconectar / gerar novo PIN</button>
     `;
     $('btnPcDisconnect').addEventListener('click', disconnectPc);
+  }
+
+  function updateStartBadge(){
+    const badge = $('pcStatusBadge');
+    if(!badge) return;
+    if(!cfg.pcPin){ badge.textContent = ''; return; }
+    badge.textContent = pcConnected ? `🖥️ PC conectado (PIN ${cfg.pcPin})` : `🖥️ PC não conectado (PIN ${cfg.pcPin})`;
+    badge.style.color = pcConnected ? '#7ee08a' : '#e9def5';
   }
 
   function generatePcPin(){
@@ -3360,13 +3370,15 @@ var qrcode = function() {
     if(!sb || !cfg.pcPin) return;
     try{
       const { data, error } = await sb.storage.from(BUCKET).list(`pcqueue/${cfg.pcPin}`);
-      if(error || !data) return;
+      if(error){ console.warn('checkPcHeartbeat erro:', error); return; }
+      if(!data){ return; }
       const statusFile = data.find(f => f.name === 'status.json');
       const wasConnected = pcConnected;
-      // considera conectado se o arquivo de status foi atualizado nos últimos 15s
-      pcConnected = !!statusFile && (Date.now() - new Date(statusFile.updated_at || statusFile.created_at).getTime() < 15000);
+      // considera conectado se o arquivo de status foi atualizado nos últimos 20s
+      pcConnected = !!statusFile && (Date.now() - new Date(statusFile.updated_at || statusFile.created_at).getTime() < 20000);
+      updateStartBadge();
       if(pcConnected !== wasConnected) renderPcPairUI();
-    } catch(err){ /* tenta de novo no próximo ciclo */ }
+    } catch(err){ console.warn('checkPcHeartbeat exceção:', err); }
   }
 
   function startPcHeartbeatCheck(){
@@ -3375,7 +3387,7 @@ var qrcode = function() {
     pcHeartbeatCheckTimer = setInterval(checkPcHeartbeat, 3000);
   }
 
-  if(!stationMode && cfg.pcPin){ startPcHeartbeatCheck(); }
+  if(!stationMode && cfg.pcPin){ startPcHeartbeatCheck(); updateStartBadge(); }
 
 
   function compressFileToDataUrl(file, targetRatio){
