@@ -424,6 +424,18 @@
   .event-times{ margin-top:0.8rem; padding-top:0.8rem; border-top:1px solid rgba(255,255,255,0.1); display:none; max-height:12rem; overflow-y:auto; font-size:0.85rem; opacity:0.85; }
   .event-times.open{ display:block; }
   .event-times div{ padding:0.15rem 0; }
+
+  /* ---------- AVISO DE DESTAQUE (dobrar/serrilha) ---------- */
+  #foldWarningScreen.overlay-visible{
+    display:flex; position:fixed; inset:0; z-index:21;
+    background: var(--curtain-deep);
+  }
+  .fold-title{ font-family:'Baloo 2', sans-serif; font-size:2.2rem; font-weight:800; margin-bottom:0.5rem; text-align:center; }
+  .fold-sub{ font-size:1.1rem; color:#e9def5; opacity:0.9; text-align:center; max-width:34rem; margin-bottom:1.8rem; }
+  .fold-diagrams{ display:flex; gap:2rem; flex-wrap:wrap; justify-content:center; margin-bottom:2rem; }
+  .fold-step{ display:flex; flex-direction:column; align-items:center; gap:0.6rem; width:9.5rem; }
+  .fold-step svg{ width:100%; height:auto; }
+  .fold-step .lbl{ font-family:'Baloo 2', sans-serif; font-size:0.95rem; font-weight:700; text-align:center; color:#fff; }
   @media print{
     body *{ visibility:hidden; }
     #sheet, #sheet *{ visibility:visible; }
@@ -540,6 +552,34 @@
       <button class="btn btn-secondary" id="btnRetake">↺ Tirar de novo</button>
       <button class="btn btn-primary" id="btnConfirm">Confirmar e Imprimir 🖨</button>
     </div>
+  </div>
+
+  <!-- AVISO DE DESTAQUE -->
+  <div class="screen" id="foldWarningScreen">
+    <div class="fold-title">Atenção na hora de destacar! ✂️</div>
+    <div class="fold-sub">A folha sai com marcas picotadas ao redor de cada foto. Pra o corte sair certinho, siga os passos:</div>
+    <div class="fold-diagrams">
+      <div class="fold-step">
+        <svg viewBox="0 0 120 100">
+          <rect x="15" y="20" width="90" height="60" rx="6" fill="none" stroke="#fff" stroke-width="3"/>
+          <line x1="60" y1="14" x2="60" y2="86" stroke="var(--mp-glow)" stroke-width="2" stroke-dasharray="5,4"/>
+          <line x1="28" y1="50" x2="48" y2="50" stroke="#fff" stroke-width="3"/>
+          <polygon points="48,44 58,50 48,56" fill="#fff"/>
+          <line x1="92" y1="50" x2="72" y2="50" stroke="#fff" stroke-width="3"/>
+          <polygon points="72,44 62,50 72,56" fill="#fff"/>
+        </svg>
+        <div class="lbl">1. Dobre bem na linha picotada</div>
+      </div>
+      <div class="fold-step">
+        <svg viewBox="0 0 120 100">
+          <rect x="10" y="22" width="42" height="56" rx="4" fill="none" stroke="#fff" stroke-width="3" transform="rotate(-4 31 50)"/>
+          <rect x="68" y="22" width="42" height="56" rx="4" fill="none" stroke="#fff" stroke-width="3" transform="rotate(4 89 50)"/>
+          <path d="M58 20 L62 28 L57 36 L63 44 L58 52 L63 60 L57 68 L62 76 L58 82" fill="none" stroke="var(--mp-glow)" stroke-width="2"/>
+        </svg>
+        <div class="lbl">2. Destaque devagar, com cuidado</div>
+      </div>
+    </div>
+    <button class="start-btn" id="btnFoldContinue">Entendi, continuar ✦</button>
   </div>
 
   <!-- TUTORIAL PRE-IMPRESSAO -->
@@ -3318,6 +3358,7 @@ var qrcode = function() {
     }
     if(stream){ stream.getTracks().forEach(t=>t.stop()); }
     buildSheet();
+    updateRetakeButtonLabel();
     showScreen('reviewScreen');
     fitSheetToScreen();
   }
@@ -3699,6 +3740,7 @@ var qrcode = function() {
     if(loaded.length === 6){
       shots = loaded;
       buildSheet();
+      updateRetakeButtonLabel();
       showScreen('reviewScreen');
       fitSheetToScreen();
       // limpa o armazenamento temporário, já baixamos tudo
@@ -3720,7 +3762,18 @@ var qrcode = function() {
   // ---------- navegação principal ----------
   $('btnStart').addEventListener('click', () => { showScreen('explainScreen'); });
   $('btnExplainStart').addEventListener('click', () => { showScreen('captureScreen'); runCaptureSequence(); });
-  $('btnRetake').addEventListener('click', () => { showScreen('captureScreen'); runCaptureSequence(); });
+  function updateRetakeButtonLabel(){
+    $('btnRetake').textContent = photoSourceMode === 'qr' ? '↺ Escolher novas fotos' : '↺ Tirar de novo';
+  }
+
+  $('btnRetake').addEventListener('click', () => {
+    if(photoSourceMode === 'qr'){
+      startQrFlow();
+    } else {
+      showScreen('captureScreen');
+      runCaptureSequence();
+    }
+  });
   async function sendToPcQueue(){
     $('printingScreen').classList.add('overlay-visible');
     $('btnPrintDone').style.display = 'none';
@@ -3756,12 +3809,17 @@ var qrcode = function() {
   }
 
   $('btnConfirm').addEventListener('click', () => {
+    // camada sobreposta: a tela de revisão (com a folha #sheet) continua
+    // ativa por baixo, só mostramos o aviso por cima dela
+    $('foldWarningScreen').classList.add('overlay-visible');
+  });
+
+  $('btnFoldContinue').addEventListener('click', () => {
+    $('foldWarningScreen').classList.remove('overlay-visible');
     if(pcConnected && cfg.pcPin){
       sendToPcQueue();
       return;
     }
-    // camada sobreposta: a tela de revisão (com a folha #sheet) continua
-    // ativa por baixo, só mostramos o tutorial por cima dela
     $('tutoScreen').classList.add('overlay-visible');
   });
 
