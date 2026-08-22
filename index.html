@@ -16,6 +16,7 @@
     --mp-purple-mid: #2a1259;
     --mp-glow: #b98cff;
     --paper: #faf6ef;
+    --print-bg: #ffffff;
     --ink: #221012;
     --ok-green: #3ba55d;
     /* aliases (mantidos p/ compatibilidade com o resto do CSS) */
@@ -280,7 +281,7 @@
   .review-sub{ font-size:1.2rem; color:#e9def5; opacity:0.85; margin-bottom:1.6rem; }
   .sheet-scale-wrap{ position:relative; }
   #sheet{
-    width:210mm; height:297mm; background:var(--paper);
+    width:210mm; height:297mm; background:var(--print-bg);
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     position:relative;
   }
@@ -3380,7 +3381,7 @@ var qrcode = function() {
     canvas.width = Math.round(210*PX);
     canvas.height = Math.round(297*PX);
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#faf6ef';
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
     const wmImg = cfg.wmDataUrl ? await loadImg(cfg.wmDataUrl) : null;
