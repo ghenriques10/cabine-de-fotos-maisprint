@@ -3776,9 +3776,9 @@ var qrcode = function() {
   });
   async function sendToPcQueue(){
     $('printingScreen').classList.add('overlay-visible');
-    $('btnPrintDone').style.display = 'none';
-    $('printingScreen').querySelector('.thanks-title').textContent = 'Enviando pra impressão... 🖨️✨';
-    $('printingScreen').querySelector('.thanks-sub').textContent = 'O computador vai imprimir sozinho em instantes. Assim que sair, dobre nas linhas picotadas e destaque com cuidado ✂️💜';
+    $('btnPrintDone').style.display = '';
+    $('printingScreen').querySelector('.thanks-title').textContent = 'Imprimindo no computador... 🖨️✨';
+    $('printingScreen').querySelector('.thanks-sub').textContent = 'Isso leva menos de 2 minutos e meio. Quando sua folha sair, dobre nas linhas picotadas e destaque cada foto com cuidado ✂️💜';
     try{
       const canvas = await renderSheetToCanvas();
       const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
@@ -3789,19 +3789,30 @@ var qrcode = function() {
         $('printingScreen').querySelector('.thanks-sub').textContent = 'Erro enviando pro PC: ' + (uploadErr.message || 'desconhecido');
         return;
       }
-      // espera o PC apagar o arquivo (sinal de que já imprimiu) por até 40s
-      let tries = 0;
+
+      // retorno pra tela inicial: temporizador fixo de 2min30, igual ao
+      // fluxo manual — o "sumiu da fila" acontece rápido demais (assim que
+      // o PC aceita o trabalho, não quando a impressora termina de verdade)
+      let returned = false;
+      const goHome = () => {
+        if(returned) return;
+        returned = true;
+        $('printingScreen').classList.remove('overlay-visible');
+        showScreen('startScreen');
+        goFullscreen();
+      };
+      $('btnPrintDone').onclick = goHome;
+      setTimeout(goHome, 150000); // 2min30
+
+      // só usamos o "sumiu da fila" pra registrar a impressão no relatório
+      // com precisão, sem afetar o tempo de retorno
+      let tries = 0, logged = false;
       const poll = setInterval(async () => {
         tries++;
         const { data } = await sb.storage.from(BUCKET).list(`pcqueue/${cfg.pcPin}/jobs`);
         const stillThere = data && data.some(f => f.name === jobName);
-        if(!stillThere){ logPrint('pc'); }
-        if(!stillThere || tries > 20){
-          clearInterval(poll);
-          $('printingScreen').classList.remove('overlay-visible');
-          showScreen('startScreen');
-          goFullscreen();
-        }
+        if(!stillThere && !logged){ logged = true; logPrint('pc'); }
+        if(!stillThere || tries > 30){ clearInterval(poll); }
       }, 2000);
     } catch(err){
       $('printingScreen').querySelector('.thanks-sub').textContent = 'Deu erro enviando pro PC. Tenta de novo ou use a impressão manual.';
@@ -3848,7 +3859,7 @@ var qrcode = function() {
       // NÃO usamos ele pra voltar — só o temporizador fixo controla isso,
       // calibrado com o tempo real medido na qualidade "normal" (1min45)
       // mais uma folga de segurança.
-      setTimeout(goHome, 140000); // 2min20
+      setTimeout(goHome, 150000); // 2min30
     }, 300);
     $('btnPrintDone').onclick = goHome;
   });
